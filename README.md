@@ -1,0 +1,1 @@
+Estudo para Arquiteto de Soluções da AWS, implementando arquitetura da aplicação OTel Demo.
