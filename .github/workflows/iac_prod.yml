@@ -19,7 +19,7 @@ jobs:
     with: # variaveis que são obrigatórias para a execução da Pipe (etapas manuais)
       environment: prd # Workspace prd no mesmo bucket
       # Role do Devops
-      aws-assume-role-arn: "arn:aws:iam::535002861869:role/github-carina-devops-pipe"      
+      aws-assume-role-arn: "arn:aws:iam::535002861869:role/gt-aws"      
       aws-region: "us-east-1"
       # Bucket recebe as configurações antes da criação da Infra
       aws-statefile-s3-bucket: "arquivo-de-estado" 
