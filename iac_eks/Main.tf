@@ -1,127 +1,252 @@
-############################################ GERAL ##################################
+####################################### PROVEDOR ##################################
 
-# Provider AWS
+# AWS
 provider "aws" {
-  region = var.region
+  region = us-east-1
 }
 
-# Resgatando informações do nome do cluster
-locals {
-  cluster_name = "eks-${random_string.suffix.result}"
+####################################### VPC ##################################
+
+resource "aws_vpc" "otel" {
+  cidr_block           = "10.0.0.0/20"
+  enable_dns_hostnames = true
+
+  tags = {
+    Name = "${var.naming_prefix}-vpc"
+  }
 }
+####################################### IGW ##################################
+# Um gateway de Internet conectado à VPC para fornecer acesso à Internet a recursos nas sub-redes públicas.
 
-resource "random_string" "suffix" {
-  length  = 8
-  special = false
-}
+resource "aws_internet_gateway" "igw" {
+  vpc_id = aws_vpc.otel.id
 
-############################################# VPC ##################################
-
-module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-
-  name = "eks-vpc"
-  cidr = "10.0.0.0/16"
-
-# Redundância em duas Zonas de Disponibilidade
-  azs             = ["us-east-1a", "us-east-1b"]
-
-# Sub-Redes
-  public_subnets  = ["10.0.0.0/24", "10.0.1.0/24"]
-  private_subnets = ["10.0.2.0/24", "10.0.6.0/24"]
-
-  enable_nat_gateway   = true # habilita nat_gateway
-  single_nat_gateway   = false # se true apenas um para toda VPC
-  one_nat_gateway_per_az = true # para que exista uma nat gateway por AZ, e não por subnet
-  enable_vpn_gateway = false # não habilitar gateway de VPN
-
-}
-
-##################################### SG ####################################
-
-module "grpc_sg" {
-  source      = "terraform-aws-modules/security-group/aws"
-  name        = "grpc"
-  description = "allow grpc traffic"
-  vpc_id      = module.vpc.vpc_id
-
-  ingress_with_cidr_blocks = [
-    {
-      from_port   = 50051
-      to_port     = 50051
-      protocol    = "tcp"
-      cidr_blocks = "0.0.0.0/0"
-    }
-  ]
-}
-
-############################################### EKS ####################################
-
-module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
-  version = "20.8.5"
-
-  cluster_name    = local.cluster_name
-  cluster_version = "1.29"
-
-  cluster_endpoint_public_access           = true
-  enable_cluster_creator_admin_permissions = true
-
-  vpc_id     = module.vpc.vpc_id
-  subnet_ids = module.vpc.private_subnets
-
-  eks_managed_node_groups = {
-    devops = {
-      min_size     = 1
-      max_size     = 3
-      desired_size = 2
-      instance_types = ["t2.micro"]
-    }
+    tags = {
+      Name = "${var.naming_prefix}-igw" 
   }
 }
 
-############################################### ALB ####################################
+####################################### SUB NET - PUB ##################################
+# Sub-redes públicas em duas zonas de disponibilidade diferentes para obter alta disponibilidade.  
 
-module "alb" {
-  source  = "terraform-aws-modules/alb/aws"
-  version = "~> 6.0"
+resource "aws_subnet" "public_subnets" {
+  vpc_id     = aws_vpc.otel.id
+  count      = length(var.public_subnet_cidrs)
+  cidr_block = element(var.public_subnet_cidrs, count.index)
+  availability_zone = element(var.azs, count.index)
+    tags = {
+      Name = "${var.naming_prefix}-${count.index + 1}-sub-pub" 
+  }
+}
 
-  name = "eks-alb"
+####################################### SUB NET - PRIV #################################
+# Sub-redes privadas em duas zonas de disponibilidade diferentes para obter alta disponibilidade.
 
-  load_balancer_type = "application"
+resource "aws_subnet" "private_subnets" {
+  vpc_id     = aws_vpc.otel.id
+  count      = length(var.private_subnet_cidrs)
+  cidr_block = element(var.private_subnet_cidrs, count.index)
+  availability_zone = element(var.azs, count.index)
+    tags = {
+      Name = "${var.naming_prefix}-${count.index + 1}-sub-priv" 
+  }
+}
 
-  vpc_id          = module.vpc.vpc_id
-  subnets         = module.vpc.private_subnets
-  security_groups = [module.vpc.default_security_group_id, module.grpc_sg.security_group_id]
 
-  target_groups = [
-    {
-      backend_protocol = "HTTPS"
-      protocol_version = "gRPC"
-      backend_port     = 50051
-      target_type      = "ip"
-      health_check = {
-        enable              = true
-        interval            = 30
-        path                = "/"
-        port                = "traffic-port"
-        healthy_threshold   = 3
-        unhealthy_threshold = 3
-        timeout             = 5
-        protocol            = "HTTPS"
-        matcher             = "12"
+####################################### ROUTE TABLE PUBL #################################
+# Tabelas de rotas e rotas configuradas para direcionar o tráfego adequadamente entre as sub-redes, o gateway NAT e o gateway da Internet.
+
+resource "aws_route_table" "public_route_table" {
+  vpc_id = aws_vpc.otel.id
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.igw.id
+  }
+
+  tags =  {
+    Name = "${var.naming_prefix}-pub-rtable"
+  }
+
+}
+
+# Atribuir a tabela de rotas públicas à sub-rede pública
+resource "aws_route_table_association" "public_rt_asso" {
+  count          = 2
+  subnet_id      = element(aws_subnet.public_subnets[*].id, count.index)
+  route_table_id = aws_route_table.public_route_table.id
+}
+
+####################################### ROUTE TABLE PRIV #################################
+# Tabelas de rotas e rotas configuradas para direcionar o tráfego adequadamente entre as sub-redes, o gateway NAT e o gateway da Internet.
+
+resource "aws_route_table" "private_route_table" {
+  vpc_id = aws_vpc.otel.id
+
+  count = 2
+  route {
+    cidr_block     = "0.0.0.0/0"
+    nat_gateway_id = aws_nat_gateway.natgateway[count.index].id
+  }
+
+  tags =  {
+    Name = "${var.naming_prefix}-priv-rtable"
+  }
+
+}
+
+# Atribuir a tabela de rotas privadas à sub-rede privada
+resource "aws_route_table_association" "private_rt_asso" {
+  count          = 2
+  subnet_id      = element(aws_subnet.private_subnets[*].id, count.index)
+  route_table_id = aws_route_table.private_route_table[count.index].id
+}
+
+####################################### NAT GATEWAY #################################
+# Um gateway NAT em cada sub-rede pública para rotear o tráfego da sub-rede privada para a Internet.
+
+resource "aws_nat_gateway" "natgateway" {
+  count         = 2
+  allocation_id = aws_eip.eip_natgw[count.index].id
+  subnet_id     = aws_subnet.public_subnets[count.index].id
+}
+
+# Necessário alocar o endereço IP elástico
+resource "aws_eip" "eip_natgw" {
+  count = 2
+}
+
+####################################### EKS #################################
+
+# IAM role para eks
+
+resource "aws_iam_role" "otel" {
+  name = "eks-cluster-otel"
+  tags = {
+    tag-key = "eks-cluster-otel"
+  }
+
+  assume_role_policy = <<POLICY
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Service": [
+                    "eks.amazonaws.com"
+                ]
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}
+POLICY
+}
+
+# Anexar política EKS
+
+resource "aws_iam_role_policy_attachment" "otel-AmazonEKSClusterPolicy" {
+  role       = aws_iam_role.otel.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSClusterPolicy"
+}
+
+# Requisito mínimo
+
+resource "aws_eks_cluster" "otel" {
+  name     = "otel"
+  role_arn = aws_iam_role.otel.arn
+
+  vpc_config {
+    subnet_ids = [
+      aws_subnet.public_subnets[count.index].id,
+      aws_subnet.private_subnets[count.index].id
+    ]
+  }
+
+  depends_on = [aws_iam_role_policy_attachment.demo-AmazonEKSClusterPolicy]
+}
+
+################################## INSTÂNCIAS #################################
+
+#   Role para único grupo de instâncias
+
+resource "aws_iam_role" "nodes" {
+  name = "eks-node-group-otel"
+
+  assume_role_policy = jsonencode({
+    Statement = [{
+      Action = "sts:AssumeRole"
+      Effect = "Allow"
+      Principal = {
+        Service = "ec2.amazonaws.com"
       }
-    }
+    }]
+    Version = "2012-10-17"
+  })
+}
+
+# Anexar política IAM ao grupo de nós
+
+resource "aws_iam_role_policy_attachment" "nodes-AmazonEKSWorkerNodePolicy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSWorkerNodePolicy"
+  role       = aws_iam_role.nodes.name
+}
+
+resource "aws_iam_role_policy_attachment" "nodes-AmazonEKS_CNI_Policy" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+  role       = aws_iam_role.nodes.name
+}
+
+resource "aws_iam_role_policy_attachment" "nodes-AmazonEC2ContainerRegistryReadOnly" {
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly"
+  role       = aws_iam_role.nodes.name
+}
+
+# Grupo de nós
+
+resource "aws_eks_node_group" "private-nodes" {
+  cluster_name    = aws_eks_cluster.otel.name
+  node_group_name = "private-nodes"
+  node_role_arn   = aws_iam_role.nodes.arn
+
+  subnet_ids = [
+    aws_subnet.private_subnets[count.index].id
   ]
 
-  https_listeners = [
-    {
-      port               = 50051
-      protocol           = "HTTPS"
-      certificate_arn    = aws_acm_certificate.self_signed.arn
-      target_group_index = 0
-    }
+  capacity_type  = "ON_DEMAND"
+  instance_types = ["t2.medium"]
+
+  scaling_config {
+    desired_size = 1
+    max_size     = 2
+    min_size     = 1
+  }
+
+  update_config {
+    max_unavailable = 1
+  }
+
+  labels = {
+    node = "kubenode01"
+  }
+
+    depends_on = [
+    aws_iam_role_policy_attachment.nodes-AmazonEKSWorkerNodePolicy,
+    aws_iam_role_policy_attachment.nodes-AmazonEKS_CNI_Policy,
+    aws_iam_role_policy_attachment.nodes-AmazonEC2ContainerRegistryReadOnly,
   ]
 }
 
-########################################################################################
+# OpenID - permissões IAM com base na conta de serviço usada pelo pod
+
+data "tls_certificate" "eks" {
+  url = aws_eks_cluster.demo.identity[0].oidc[0].issuer
+}
+
+resource "aws_iam_openid_connect_provider" "eks" {
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.eks.certificates[0].sha1_fingerprint]
+  url             = aws_eks_cluster.demo.identity[0].oidc[0].issuer
+}
+
