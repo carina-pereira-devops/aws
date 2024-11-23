@@ -159,12 +159,14 @@ resource "aws_eks_cluster" "otel" {
 
   vpc_config {
     subnet_ids = [
-      aws_subnet.public_subnets[count.index].id,
-      aws_subnet.private_subnets[count.index].id
+      aws_subnet.public_subnets0.id,
+      aws_subnet.public_subnets1.id,
+      aws_subnet.private_subnets0.id,
+      aws_subnet.private_subnets1.id,
     ]
   }
 
-  depends_on = [aws_iam_role_policy_attachment.demo-AmazonEKSClusterPolicy]
+  depends_on = [aws_iam_role_policy_attachment.otel-AmazonEKSClusterPolicy]
 }
 
 ################################## INSTÂNCIAS #################################
