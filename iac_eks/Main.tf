@@ -35,7 +35,7 @@ resource "aws_subnet" "public-us-east-1a" {
   availability_zone = "us-east-1a"
 
   tags = {
-    Name                              = "${var.naming_prefix}-${count.index + 1}-sub-pub" 
+    Name                              = "${var.naming_prefix}-publ-1"
     "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets
     "kubernetes.io/cluster/demo"      = "owned"
   }
@@ -47,7 +47,7 @@ resource "aws_subnet" "public-us-east-1b" {
   availability_zone = "us-east-1b"
 
   tags = {
-    Name                              = "${var.naming_prefix}-${count.index + 1}-sub-pub" 
+    Name                              = "${var.naming_prefix}-publ-2"
     "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets
     "kubernetes.io/cluster/demo"      = "owned"
   }
@@ -61,7 +61,7 @@ resource "aws_subnet" "private-us-east-1a" {
   availability_zone = "us-east-1a"
 
   tags = {
-    Name                              = "${var.naming_prefix}-${count.index + 1}-sub-priv" 
+    Name                              = "${var.naming_prefix}-private-1" 
     "kubernetes.io/role/internal-elb" = "1"
     "kubernetes.io/cluster/otel"      = "owned"
   }
@@ -73,7 +73,7 @@ resource "aws_subnet" "private-us-east-1b" {
   availability_zone = "us-east-1b"
 
   tags = {
-    Name                              = "${var.naming_prefix}-${count.index + 1}-sub-priv" 
+    Name                              = "${var.naming_prefix}-private-2" 
     "kubernetes.io/role/internal-elb" = "1"
     "kubernetes.io/cluster/otel"      = "owned"
   }
@@ -99,8 +99,8 @@ resource "aws_route_table" "public_route_table" {
 
 # Atribuir a tabela de rotas públicas à sub-rede pública
 resource "aws_route_table_association" "public_rt_asso" {
-  count          = 2
-  subnet_id      = element(aws_subnet.public_subnets[*].id, count.index)
+
+  subnet_id      = [aws_subnet.public-us-east-1a.id, aws_subnet.public-us-east-1b.id]
   route_table_id = aws_route_table.public_route_table.id
 }
 
@@ -125,7 +125,7 @@ resource "aws_route_table" "private_route_table" {
 # Atribuir a tabela de rotas privadas à sub-rede privada
 resource "aws_route_table_association" "private_rt_asso" {
   count          = 2
-  subnet_id      = element(aws_subnet.private_subnets[*].id, count.index)
+  subnet_id     = [aws_subnet.private-us-east-1a.id, aws_subnet.private-us-east-1b.id]
   route_table_id = aws_route_table.private_route_table[count.index].id
 }
 
@@ -133,9 +133,9 @@ resource "aws_route_table_association" "private_rt_asso" {
 # Um gateway NAT em cada sub-rede pública para rotear o tráfego da sub-rede privada para a Internet.
 
 resource "aws_nat_gateway" "natgateway" {
-  count         = 2
   allocation_id = aws_eip.eip_natgw[count.index].id
-  subnet_id     = aws_subnet.public_subnets[count.index].id
+  subnet_id     = [aws_subnet.public-us-east-1a.id, aws_subnet.public-us-east-1b.id]
+
 }
 
 # Necessário alocar o endereço IP elástico
