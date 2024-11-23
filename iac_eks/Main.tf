@@ -94,16 +94,20 @@ resource "aws_route_table" "public_route_table" {
   tags =  {
     Name = "${var.naming_prefix}-pub-rtable"
   }
-
 }
 
 # Atribuir a tabela de rotas públicas à sub-rede pública
-resource "aws_route_table_association" "public_rt_asso" {
+resource "aws_route_table_association" "public-us-east-1a" {
 
-  subnet_id      = [aws_subnet.public-us-east-1a.id, aws_subnet.public-us-east-1b.id]
+  subnet_id      = aws_subnet.public-us-east-1a.id
   route_table_id = aws_route_table.public_route_table.id
 }
 
+resource "aws_route_table_association" "public-us-east-1b" {
+
+  subnet_id      = aws_subnet.public-us-east-1b.id
+  route_table_id = aws_route_table.public_route_table.id
+}
 ####################################### ROUTE TABLE PRIV #################################
 # Tabelas de rotas e rotas configuradas para direcionar o tráfego adequadamente entre as sub-redes, o gateway NAT e o gateway da Internet.
 
@@ -119,14 +123,17 @@ resource "aws_route_table" "private_route_table" {
   tags =  {
     Name = "${var.naming_prefix}-priv-rtable"
   }
-
 }
 
 # Atribuir a tabela de rotas privadas à sub-rede privada
-resource "aws_route_table_association" "private_rt_asso" {
-  count          = 2
-  subnet_id     = [aws_subnet.private-us-east-1a.id, aws_subnet.private-us-east-1b.id]
-  route_table_id = aws_route_table.private_route_table[count.index].id
+resource "aws_route_table_association" "private-us-east-1a" {
+  subnet_id      = aws_subnet.private-us-east-1a.id
+  route_table_id = aws_route_table.private_route_table.id
+}
+
+resource "aws_route_table_association" "private-us-east-1b" {
+  subnet_id      = aws_subnet.private-us-east-1b.id
+  route_table_id = aws_route_table.private_route_table.id
 }
 
 ####################################### NAT GATEWAY #################################
