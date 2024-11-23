@@ -29,26 +29,53 @@ resource "aws_internet_gateway" "igw" {
 ####################################### SUB NET - PUB ##################################
 # Sub-redes públicas em duas zonas de disponibilidade diferentes para obter alta disponibilidade.  
 
-resource "aws_subnet" "public_subnets" {
-  vpc_id     = aws_vpc.otel.id
-  count      = length(var.public_subnet_cidrs)
-  cidr_block = element(var.public_subnet_cidrs, count.index)
-  availability_zone = element(var.azs, count.index)
-    tags = {
-      Name = "${var.naming_prefix}-${count.index + 1}-sub-pub" 
+resource "aws_subnet" "public-us-east-1a" {
+  vpc_id            = aws_vpc.otel.id
+  cidr_block        = "10.0.0.0/24"
+  availability_zone = "us-east-1a"
+
+  tags = {
+    Name                              = "${var.naming_prefix}-${count.index + 1}-sub-pub" 
+    "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets
+    "kubernetes.io/cluster/demo"      = "owned"
   }
 }
 
+resource "aws_subnet" "public-us-east-1b" {
+  vpc_id            = aws_vpc.otel.id
+  cidr_block        = "10.0.1.0/24"
+  availability_zone = "us-east-1b"
+
+  tags = {
+    Name                              = "${var.naming_prefix}-${count.index + 1}-sub-pub" 
+    "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets
+    "kubernetes.io/cluster/demo"      = "owned"
+  }
+}
 ####################################### SUB NET - PRIV #################################
 # Sub-redes privadas em duas zonas de disponibilidade diferentes para obter alta disponibilidade.
 
-resource "aws_subnet" "private_subnets" {
-  vpc_id     = aws_vpc.otel.id
-  count      = length(var.private_subnet_cidrs)
-  cidr_block = element(var.private_subnet_cidrs, count.index)
-  availability_zone = element(var.azs, count.index)
-    tags = {
-      Name = "${var.naming_prefix}-${count.index + 1}-sub-priv" 
+resource "aws_subnet" "private-us-east-1a" {
+  vpc_id            = aws_vpc.otel.id
+  cidr_block        = "10.0.2.0/24"
+  availability_zone = "us-east-1a"
+
+  tags = {
+    Name                              = "${var.naming_prefix}-${count.index + 1}-sub-priv" 
+    "kubernetes.io/role/internal-elb" = "1"
+    "kubernetes.io/cluster/otel"      = "owned"
+  }
+}
+
+resource "aws_subnet" "private-us-east-1b" {
+  vpc_id            = aws_vpc.otel.id
+  cidr_block        = "10.0.6.0/24"
+  availability_zone = "us-east-1b"
+
+  tags = {
+    Name                              = "${var.naming_prefix}-${count.index + 1}-sub-priv" 
+    "kubernetes.io/role/internal-elb" = "1"
+    "kubernetes.io/cluster/otel"      = "owned"
   }
 }
 
@@ -159,8 +186,10 @@ resource "aws_eks_cluster" "otel" {
 
   vpc_config {
     subnet_ids = [
-      aws_subnet.public_subnets[count.index].id,
-      aws_subnet.private_subnets[count.index].id
+      aws_subnet.private-us-east-1a.id,
+      aws_subnet.private-us-east-1b.id,
+      aws_subnet.public-us-east-1a.id,
+      aws_subnet.public-us-east-1b.id
     ]
   }
 
