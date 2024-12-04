@@ -144,7 +144,7 @@ resource "aws_route_table" "private_route_table" {
   count = 2
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.natgateway[count.index].id
+    nat_gateway_id = aws_nat_gateway.natgateway.id
   }
 
   tags =  {
