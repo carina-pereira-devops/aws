@@ -1,15 +1,24 @@
 ####################################### PROVEDOR ##################################
 
-# AWS
+# Provider
 provider "aws" {
   region = "us-east-1"
 }
+
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.47.0"
+    }
+  }
+}
+
 
 ####################################### VPC ##################################
 
 resource "aws_vpc" "otel" {
   cidr_block           = "10.0.0.0/20"
-  enable_dns_hostnames = true
 
   tags = {
     Name = "${var.naming_prefix}-vpc"
@@ -37,7 +46,7 @@ resource "aws_subnet" "public-us-east-1a" {
   tags = {
     Name                              = "${var.naming_prefix}-publ-1"
     "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets
-    "kubernetes.io/cluster/demo"      = "owned"
+    "kubernetes.io/cluster/otel"      = "owned"
   }
 }
 
@@ -49,7 +58,7 @@ resource "aws_subnet" "public-us-east-1b" {
   tags = {
     Name                              = "${var.naming_prefix}-publ-2"
     "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets
-    "kubernetes.io/cluster/demo"      = "owned"
+    "kubernetes.io/cluster/otel"      = "owned"
   }
 }
 ####################################### SUB NET - PRIV #################################
@@ -61,7 +70,7 @@ resource "aws_subnet" "private-us-east-1a" {
   availability_zone = "us-east-1a"
 
   tags = {
-    Name                              = "${var.naming_prefix}-private-1" 
+    Name                              = "${var.naming_prefix}-private-1a" 
     "kubernetes.io/role/internal-elb" = "1"
     "kubernetes.io/cluster/otel"      = "owned"
   }
@@ -73,10 +82,28 @@ resource "aws_subnet" "private-us-east-1b" {
   availability_zone = "us-east-1b"
 
   tags = {
-    Name                              = "${var.naming_prefix}-private-2" 
+    Name                              = "${var.naming_prefix}-private-1b" 
     "kubernetes.io/role/internal-elb" = "1"
     "kubernetes.io/cluster/otel"      = "owned"
   }
+}
+
+####################################### NAT GATEWAY #################################
+# Um gateway NAT em cada sub-rede pública para rotear o tráfego da sub-rede privada para a Internet.
+
+# Necessário alocar o endereço IP elástico
+resource "aws_eip" "eip_natgw" {
+  domain = vpc
+}
+resource "aws_nat_gateway" "natgateway" {
+  allocation_id = aws_eip.eip_natgw.id
+  subnet_id     = [aws_subnet.public-us-east-1a.id]
+
+  tags = {
+    Name                              = "${var.naming_prefix}-nat-gw" 
+  }
+
+  depends_on = [aws_internet_gateway.igw]
 }
 
 
@@ -134,20 +161,6 @@ resource "aws_route_table_association" "private-us-east-1a" {
 resource "aws_route_table_association" "private-us-east-1b" {
   subnet_id      = aws_subnet.private-us-east-1b.id
   route_table_id = aws_route_table.private_route_table.id
-}
-
-####################################### NAT GATEWAY #################################
-# Um gateway NAT em cada sub-rede pública para rotear o tráfego da sub-rede privada para a Internet.
-
-resource "aws_nat_gateway" "natgateway" {
-  allocation_id = aws_eip.eip_natgw[count.index].id
-  subnet_id     = [aws_subnet.public-us-east-1a.id, aws_subnet.public-us-east-1b.id]
-
-}
-
-# Necessário alocar o endereço IP elástico
-resource "aws_eip" "eip_natgw" {
-  count = 2
 }
 
 ####################################### EKS #################################
@@ -247,7 +260,8 @@ resource "aws_eks_node_group" "private-nodes" {
   node_role_arn   = aws_iam_role.nodes.arn
 
   subnet_ids = [
-    aws_subnet.private_subnets[count.index].id
+    aws_subnet.private-us-east-1a.id,
+    aws_subnet.private-us-east-1b.id
   ]
 
   capacity_type  = "ON_DEMAND"
@@ -286,3 +300,4 @@ resource "aws_iam_openid_connect_provider" "eks" {
   url             = aws_eks_cluster.otel.identity[0].oidc[0].issuer
 }
 
+################################## CONTINUA ... #################################
