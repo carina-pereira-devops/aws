@@ -93,7 +93,7 @@ resource "aws_subnet" "private-us-east-1b" {
 
 # Necessário alocar o endereço IP elástico
 resource "aws_eip" "eip_natgw" {
-  domain = vpc
+  domain = "vpc"
 }
 resource "aws_nat_gateway" "natgateway" {
   allocation_id = aws_eip.eip_natgw.id
