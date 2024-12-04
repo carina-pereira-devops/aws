@@ -97,7 +97,7 @@ resource "aws_eip" "eip_natgw" {
 }
 resource "aws_nat_gateway" "natgateway" {
   allocation_id = aws_eip.eip_natgw.id
-  subnet_id     = [aws_subnet.public-us-east-1a.id]
+  subnet_id     = aws_subnet.public-us-east-1a.id
 
   tags = {
     Name                              = "${var.naming_prefix}-nat-gw" 
