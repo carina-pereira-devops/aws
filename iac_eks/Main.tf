@@ -45,7 +45,7 @@ resource "aws_subnet" "public-us-east-1a" {
 
   tags = {
     Name                              = "${var.naming_prefix}-publ-1"
-    "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets
+    "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets (só qd faz o deploy via helm do ALB?)
     "kubernetes.io/cluster/otel"      = "owned"
   }
 }
@@ -57,7 +57,7 @@ resource "aws_subnet" "public-us-east-1b" {
 
   tags = {
     Name                              = "${var.naming_prefix}-publ-2"
-    "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets
+    "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets (só qd faz o deploy via helm do ALB?)
     "kubernetes.io/cluster/otel"      = "owned"
   }
 }
@@ -94,6 +94,10 @@ resource "aws_subnet" "private-us-east-1b" {
 # Necessário alocar o endereço IP elástico
 resource "aws_eip" "eip_natgw" {
   domain = "vpc"
+
+  tags = {
+    Name                              = "${var.naming_prefix}-eip" 
+  }
 }
 resource "aws_nat_gateway" "natgateway" {
   allocation_id = aws_eip.eip_natgw.id
@@ -164,7 +168,7 @@ resource "aws_route_table_association" "private-us-east-1b" {
 
 ####################################### EKS #################################
 
-# IAM role para eks
+# IAM role para eks --> Esta é a role que talvez eu precise configurar para ter acesso ao cluster
 
 resource "aws_iam_role" "otel" {
   name = "eks-cluster-otel"
