@@ -14,6 +14,7 @@ terraform {
   }
 }
 
+
 ####################################### VPC ##################################
 
 resource "aws_vpc" "otel" {
@@ -23,7 +24,6 @@ resource "aws_vpc" "otel" {
     Name = "${var.naming_prefix}-vpc"
   }
 }
-
 ####################################### IGW ##################################
 # Um gateway de Internet conectado à VPC para fornecer acesso à Internet a recursos nas sub-redes públicas.
 
@@ -61,7 +61,6 @@ resource "aws_subnet" "public-us-east-1b" {
     "kubernetes.io/cluster/otel"      = "owned"
   }
 }
-
 ####################################### SUB NET - PRIV #################################
 # Sub-redes privadas em duas zonas de disponibilidade diferentes para obter alta disponibilidade.
 
@@ -111,6 +110,7 @@ resource "aws_nat_gateway" "natgateway" {
   depends_on = [aws_internet_gateway.igw]
 }
 
+
 ####################################### ROUTE TABLE PUBL #################################
 # Tabelas de rotas e rotas configuradas para direcionar o tráfego adequadamente entre as sub-redes, o gateway NAT e o gateway da Internet.
 
@@ -139,7 +139,6 @@ resource "aws_route_table_association" "public-us-east-1b" {
   subnet_id      = aws_subnet.public-us-east-1b.id
   route_table_id = aws_route_table.public_route_table.id
 }
-
 ####################################### ROUTE TABLE PRIV #################################
 # Tabelas de rotas e rotas configuradas para direcionar o tráfego adequadamente entre as sub-redes, o gateway NAT e o gateway da Internet.
 
@@ -169,7 +168,7 @@ resource "aws_route_table_association" "private-us-east-1b" {
 
 ####################################### EKS #################################
 
-# IAM role para eks -
+# IAM role para eks --> Esta é a role que talvez eu precise configurar para ter acesso ao cluster
 
 resource "aws_iam_role" "otel" {
   name = "eks-cluster-otel"
@@ -221,6 +220,7 @@ resource "aws_eks_cluster" "otel" {
 }
 
 ################################## INSTÂNCIAS #################################
+
 #   Role para único grupo de instâncias
 
 resource "aws_iam_role" "nodes" {
@@ -303,301 +303,4 @@ resource "aws_iam_openid_connect_provider" "eks" {
   url             = aws_eks_cluster.otel.identity[0].oidc[0].issuer
 }
 
-#################################### AWS - AUTH ###################################
-
-# 1. Especificar o cluster (adicionar filtros quando temos mais de um cluster no ambiente)
-
-data "aws_resourcegroupstaggingapi_resources" "cluster" {
-  resource_type_filters = ["eks:cluster"]
-}
-
-# 2. Extrair o nome do Cluster:
-
-locals {
-  cluster_arn      = data.aws_resourcegroupstaggingapi_resources.cluster.resource_tag_mapping_list[0].resource_arn
-  cluster_name     = regex("^arn:aws:eks:.+:\\d+:cluster\\/(.+)$", local.cluster_arn)[0] 
-}
-
-# 3. Criar fonte de dados deste cluster:
-
-data "aws_eks_cluster" "eks" {
-  name = local.cluster_name
-}
-
-data "aws_eks_cluster_auth" "eks" {
-  name = local.cluster_name
-}
-
-# 4. Crie um provedor kubernetes com fontes de dados EKS
-
-provider "kubernetes" {
-  host                   = data.aws_eks_cluster.eks.endpoint
-  cluster_ca_certificate = base64decode(data.aws_eks_cluster.eks.certificate_authority.0.data)
-  token                  = data.aws_eks_cluster_auth.eks.token
-}
-
-# 5. Role/Policy IAM
-
-data "aws_iam_policy_document" "assume_role" {
-  statement {
-    effect = "Allow"
-
-    principals {
-      type        = "Service"
-      identifiers = ["codebuild.amazonaws.com"]
-    }
-
-    actions = ["sts:AssumeRole"]
-  }
-}
-
-resource "aws_iam_role" "service_role" {
-  name               = "service-role"
-  assume_role_policy = data.aws_iam_policy_document.assume_role.json
-}
-
-# 6. Permissões
-
-locals {
-  new_role_yaml = <<-EOF
-    - groups:
-      - system:masters
-      rolearn: ${aws_iam_role.service_role.arn}
-      username: ${aws_iam_role.service_role.name}
-    EOF
-}
-
-# 7. Fonte de dados da ConfigMap aws-auth
-
-data "kubernetes_config_map" "aws_auth" {
-  metadata {
-    name = "aws-auth"
-    namespace = "kube-system"
-  }
-}
-
-# 8. Atualizando ConfigMap Auth
-
-resource "kubernetes_config_map_v1_data" "aws_auth" {
-  force = true
-
-  metadata {
-    name      = "aws-auth"
-    namespace = "kube-system"
-  }
-
-  data = {
-    # Convert to list, make distinict to remove duplicates, and convert to yaml as mapRoles is a yaml string.
-    # replace() remove double quotes on "strings" in yaml output.
-    # distinct() only apply the change once, not append every run.
-    mapRoles = replace(yamlencode(distinct(concat(yamldecode(data.kubernetes_config_map.aws_auth.data.mapRoles), yamldecode(local.new_role_yaml)))), "\"", "")
-  }
-
-  lifecycle {
-    ignore_changes = []
-    prevent_destroy = true
-  }
-}
-
-#################################### ALB - DADOS ###################################
-# Serão criados a VPC (otel ou otel-vpc) e o EKS (otel) 
-
-data "aws_vpc" "otel" {
-  tags = {
-    Name = "${var.naming_prefix}-vpc-data" # Vai sobrescrever o nome? Ou é o nome do dado?
-  }
-}
-
-data "aws_subnet" "private-us-east-1a" {
-  filter {
-    name   = "tag:kubernetes.io/cluster/otel"
-    values = ["shared"]
-  }
-
-  filter {
-    name   = "tag:kubernetes.io/role/internal-elb"
-    values = ["1"]
-  }
-}
-
-data "aws_subnet" "private-us-east-1b" {
-  filter {
-    name   = "tag:kubernetes.io/cluster/otel"
-    values = ["shared"]
-  }
-
-  filter {
-    name   = "tag:kubernetes.io/role/internal-elb"
-    values = ["1"]
-  }
-}
-
-data "aws_subnet" "public-us-east-1a" {
-  filter {
-    name   = "tag:kubernetes.io/cluster/otel"
-    values = ["shared"]
-  }
-
-  filter {
-    name   = "tag:kubernetes.io/role/elb"
-    values = ["1"]
-  }
-}
-
-data "aws_subnet" "public-us-east-1b" {
-  filter {
-    name   = "tag:kubernetes.io/cluster/otel"
-    values = ["shared"]
-  }
-
-  filter {
-    name   = "tag:kubernetes.io/role/elb"
-    values = ["1"]
-  }
-}
-
-##################################### ALB - SG ####################################
-
-resource "aws_security_group" "allow_https" {
-  name        = "otel_allow_tls"
-  description = "Allow HTTP/TLS inbound traffic"
-  vpc_id      = data.aws_vpc.otel.id
-
-  ingress {
-    description = "HTTPS from internet"
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "HTTP from internet"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  ingress {
-    description = "otel"
-    from_port   = 0
-    to_port     = 0
-    protocol    = "all"
-    cidr_blocks = [data.aws_vpc.otel.cidr_block]
-  }
-
-  egress {
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-    ipv6_cidr_blocks = ["::/0"]
-  }
-
-  tags = {
-    Name = "${var.naming_prefix}-alb-sg"
-  }
-}
-
-################################### LB - Subnets Publicas ##################################
-
-resource "aws_lb" "alb_for_otel" {
-  name               = "alb-ingress-otel-eks"
-  internal           = false
-  load_balancer_type = "application"
-  security_groups    = [aws_security_group.allow_https.id]
-  subnets            = [data.aws_subnets.public-us-east-1a.id,data.aws_subnets.public-us-east-1b.id]
-
-  enable_deletion_protection = true
-
-  tags = {
-    Environment = "otel"
-    Terraform   = "true"
-  }
-}
-
-######################################## Target Group #####################################
-
-resource "aws_lb_target_group" "http" {
-  name        = "eks-otel-http"
-  target_type = "instance"
-  port        = "30080"
-  protocol    = "HTTP"
-  vpc_id      = data.aws_vpc.otel.id
-
-  health_check {
-    path     = "/"
-    port     = "30080"
-    protocol = "HTTP"
-    matcher  = "200,404"
-  }
-
-  tags = {
-    Environment = "otel"
-  }
-}
-
-resource "aws_lb_target_group" "https" {
-  name        = "eks-otel-https"
-  target_type = "instance"
-  port        = "30443"
-  protocol    = "HTTPS"
-  vpc_id      = data.aws_vpc.otel.id
-
-  health_check {
-    path     = "/"
-    port     = "30443"
-    protocol = "HTTPS"
-    matcher  = "200,404"
-  }
-
-  tags = {
-    Environment = "otel"
-  }
-}
-
-######################################## Listeners #####################################
-
-resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.alb_dev.arn
-  port              = "80"
-  protocol          = "HTTP"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.http.arn
-  }
-}
-
-resource "aws_lb_listener" "https" {
-  load_balancer_arn = aws_lb.alb_dev.arn
-  port              = "443"
-  protocol          = "HTTPS"
-  #certificate_arn   = "arn:aws:acm:us-east-4:4206969777:certificate/whoa-some-id-was-here"
-
-  default_action {
-    type             = "forward"
-    target_group_arn = aws_lb_target_group.https.arn
-  }
-}
-
-####################################### CERT - ACM #####################################
-
-resource "aws_acm_certificate" "otel-certificate" {
-  domain_name       = "otel.com"
-  validation_method = "DNS"
-
-  tags = {
-    Name = "otel.com SSL certificate"
-  }
-}
-
-# Associação Certificado SSL ao listener ALB
-
-resource "aws_lb_listener_certificate" "otel-certificate" {
-  listener_arn = aws_lb_listener.https.arn
-  certificate_arn = aws_acm_certificate.otel-certificate.arn
-}
-
-###################################### Auto Scaling ... Continua ########################
+################################## CONTINUA ... #################################
