@@ -207,7 +207,9 @@ resource "aws_iam_role_policy_attachment" "otel-AmazonEKSClusterPolicy" {
 resource "aws_eks_cluster" "otel" {
   name     = "otel"
   role_arn = aws_iam_role.otel.arn
-
+  tags = {
+    Environment = "prd"
+  }
   vpc_config {
     subnet_ids = [
       aws_subnet.private-us-east-1a.id,
@@ -311,8 +313,8 @@ data "aws_resourcegroupstaggingapi_resources" "cluster" {
   resource_type_filters = ["eks:cluster"]
 
   tag_filter {
-    key    = "tag-key"
-    values = ["eks-cluster-otel"]
+    key    = "Environment"
+    values = ["prd"]
   }
 
   depends_on = [aws_eks_cluster.otel]
@@ -381,7 +383,7 @@ data "kubernetes_config_map" "aws_auth" {
     name = "aws-auth"
     namespace = "kube-system"
   }
-  
+
   depends_on = [aws_eks_cluster.otel]
 }
 
