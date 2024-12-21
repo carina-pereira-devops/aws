@@ -309,6 +309,11 @@ resource "aws_iam_openid_connect_provider" "eks" {
 
 data "aws_resourcegroupstaggingapi_resources" "cluster" {
   resource_type_filters = ["eks:cluster"]
+
+  tag_filter {
+    key    = "tag-key"
+    values = ["eks-cluster-otel"]
+  }  
 }
 
 # 2. Extrair o nome do Cluster:
@@ -406,6 +411,10 @@ data "aws_vpc" "otel" {
   tags = {
     Name = "${var.naming_prefix}-vpc-data" # Vai sobrescrever o nome? Ou é o nome do dado?
   }
+
+  depends_on = [
+    aws_vpc.otel
+  ]
 }
 
 data "aws_subnet" "private-us-east-1a" {
@@ -418,6 +427,10 @@ data "aws_subnet" "private-us-east-1a" {
     name   = "tag:kubernetes.io/role/internal-elb"
     values = ["1"]
   }
+
+  depends_on = [
+    aws_subnet.private-us-east-1a
+  ]
 }
 
 data "aws_subnet" "private-us-east-1b" {
@@ -430,6 +443,10 @@ data "aws_subnet" "private-us-east-1b" {
     name   = "tag:kubernetes.io/role/internal-elb"
     values = ["1"]
   }
+
+  depends_on = [
+    aws_subnet.private-us-east-1b
+  ]
 }
 
 data "aws_subnet" "public-us-east-1a" {
@@ -442,6 +459,10 @@ data "aws_subnet" "public-us-east-1a" {
     name   = "tag:kubernetes.io/role/elb"
     values = ["1"]
   }
+
+  depends_on = [
+    aws_subnet.public-us-east-1a
+  ]
 }
 
 data "aws_subnet" "public-us-east-1b" {
@@ -454,6 +475,10 @@ data "aws_subnet" "public-us-east-1b" {
     name   = "tag:kubernetes.io/role/elb"
     values = ["1"]
   }
+
+  depends_on = [
+    aws_subnet.public-us-east-1b
+  ]
 }
 
 ##################################### ALB - SG ####################################
