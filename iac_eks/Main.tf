@@ -507,7 +507,7 @@ resource "aws_lb" "alb_for_otel" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.allow_https.id]
-  subnets            = [data.aws_subnets.public-us-east-1a.id,data.aws_subnets.public-us-east-1b.id]
+  subnets            = [data.aws_subnet.public-us-east-1a.id,data.aws_subnet.public-us-east-1b.id]
 
   enable_deletion_protection = true
 
@@ -560,7 +560,7 @@ resource "aws_lb_target_group" "https" {
 ######################################## Listeners #####################################
 
 resource "aws_lb_listener" "http" {
-  load_balancer_arn = aws_lb.alb_dev.arn
+  load_balancer_arn = aws_lb.alb_for_otel.arn
   port              = "80"
   protocol          = "HTTP"
 
@@ -571,7 +571,7 @@ resource "aws_lb_listener" "http" {
 }
 
 resource "aws_lb_listener" "https" {
-  load_balancer_arn = aws_lb.alb_dev.arn
+  load_balancer_arn = aws_lb.alb_for_otel.arn
   port              = "443"
   protocol          = "HTTPS"
   #certificate_arn   = "arn:aws:acm:us-east-4:4206969777:certificate/whoa-some-id-was-here"
