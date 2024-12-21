@@ -313,7 +313,9 @@ data "aws_resourcegroupstaggingapi_resources" "cluster" {
   tag_filter {
     key    = "tag-key"
     values = ["eks-cluster-otel"]
-  }  
+  }
+
+  depends_on = [aws_eks_cluster.otel]
 }
 
 # 2. Extrair o nome do Cluster:
