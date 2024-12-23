@@ -408,6 +408,8 @@ resource "kubernetes_config_map_v1_data" "aws_auth" {
     ignore_changes = []
     prevent_destroy = true
   }
+
+  depends_on = [aws_eks_cluster.otel]
 }
 
 #################################### ALB - DADOS ###################################
