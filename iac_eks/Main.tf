@@ -631,4 +631,7 @@ resource "aws_lb_listener_certificate" "otel-certificate" {
   certificate_arn = aws_acm_certificate.otel-certificate.arn
 }
 
-###################################### Auto Scaling ... Continua ########################
+###############################################################################
+
+# Aplicar novamente esta última execução, e testar Auto Scaling ... Continua
+
