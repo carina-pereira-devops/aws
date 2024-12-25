@@ -46,7 +46,7 @@ resource "aws_subnet" "public-us-east-1a" {
   tags = {
     Name                              = "${var.naming_prefix}-publ-1"
     "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets (só qd faz o deploy via helm do ALB?)
-    "kubernetes.io/cluster/otel"      = "owned"
+    "kubernetes.io/cluster/otel"      = "shared"
   }
 }
 
@@ -58,7 +58,7 @@ resource "aws_subnet" "public-us-east-1b" {
   tags = {
     Name                              = "${var.naming_prefix}-publ-2"
     "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets (só qd faz o deploy via helm do ALB?)
-    "kubernetes.io/cluster/otel"      = "owned"
+    "kubernetes.io/cluster/otel"      = "shared"
   }
 }
 
@@ -73,7 +73,7 @@ resource "aws_subnet" "private-us-east-1a" {
   tags = {
     Name                              = "${var.naming_prefix}-private-1a" 
     "kubernetes.io/role/internal-elb" = "1"
-    "kubernetes.io/cluster/otel"      = "owned"
+    "kubernetes.io/cluster/otel"      = "shared"
   }
 }
 
@@ -85,7 +85,7 @@ resource "aws_subnet" "private-us-east-1b" {
   tags = {
     Name                              = "${var.naming_prefix}-private-1b" 
     "kubernetes.io/role/internal-elb" = "1"
-    "kubernetes.io/cluster/otel"      = "owned"
+    "kubernetes.io/cluster/otel"      = "shared"
   }
 }
 
@@ -270,7 +270,7 @@ resource "aws_eks_node_group" "private-nodes" {
   ]
 
   capacity_type  = "ON_DEMAND"
-  instance_types = ["t2.medium"]
+  instance_types = ["t2.micro"]
 
   scaling_config {
     desired_size = 1
@@ -420,9 +420,7 @@ data "aws_vpc" "otel" {
     Name = "${var.naming_prefix}-vpc-data" # Vai sobrescrever o nome? Ou é o nome do dado?
   }
 
-  depends_on = [
-    aws_vpc.otel
-  ]
+  depends_on = [aws_vpc.otel]
 }
 
 data "aws_subnet" "private-us-east-1a" {
@@ -436,9 +434,7 @@ data "aws_subnet" "private-us-east-1a" {
     values = ["1"]
   }
 
-  depends_on = [
-    aws_subnet.private-us-east-1a
-  ]
+  depends_on = [aws_subnet.private-us-east-1a]
 }
 
 data "aws_subnet" "private-us-east-1b" {
@@ -452,9 +448,7 @@ data "aws_subnet" "private-us-east-1b" {
     values = ["1"]
   }
 
-  depends_on = [
-    aws_subnet.private-us-east-1b
-  ]
+  depends_on = [aws_subnet.private-us-east-1b]
 }
 
 data "aws_subnet" "public-us-east-1a" {
@@ -468,9 +462,7 @@ data "aws_subnet" "public-us-east-1a" {
     values = ["1"]
   }
 
-  depends_on = [
-    aws_subnet.public-us-east-1a
-  ]
+  depends_on = [aws_subnet.public-us-east-1a]
 }
 
 data "aws_subnet" "public-us-east-1b" {
@@ -484,9 +476,7 @@ data "aws_subnet" "public-us-east-1b" {
     values = ["1"]
   }
 
-  depends_on = [
-    aws_subnet.public-us-east-1b
-  ]
+  depends_on = [aws_subnet.public-us-east-1b]
 }
 
 ##################################### ALB - SG ####################################
