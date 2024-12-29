@@ -498,7 +498,11 @@ resource "aws_lb" "alb_for_otel" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.allow_https.id]
-  subnets            = data.aws_subnets.otel_public_sub.ids
+  subnets            = [aws_subnet.public-us-east-1a.id,aws_subnet.public-us-east-1a.id] 
+
+
+# data "aws_subnets" "otel_public_sub" {
+
 
   enable_deletion_protection = true
 
