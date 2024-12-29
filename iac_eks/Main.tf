@@ -417,7 +417,7 @@ resource "kubernetes_config_map_v1_data" "aws_auth" {
 
 data "aws_vpc" "otel" {
   tags = {
-    Name = "${var.naming_prefix}-vpc-data" # Vai sobrescrever o nome? Ou é o nome do dado?
+    Name = "${var.naming_prefix}-vpc" # Vai sobrescrever o nome? Ou é o nome do dado?
   }
 
   depends_on = [aws_vpc.otel]
