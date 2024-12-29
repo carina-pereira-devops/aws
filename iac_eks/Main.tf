@@ -44,7 +44,7 @@ resource "aws_subnet" "public-us-east-1a" {
   availability_zone = "us-east-1a"
 
   tags = {
-    Name                              = "${var.naming_prefix}-publ-1"
+    Name                              = "${var.naming_prefix}-publ-1a"
     "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets (só qd faz o deploy via helm do ALB?)
     "kubernetes.io/cluster/otel"      = "shared"
   }
@@ -56,7 +56,7 @@ resource "aws_subnet" "public-us-east-1b" {
   availability_zone = "us-east-1b"
 
   tags = {
-    Name                              = "${var.naming_prefix}-publ-2"
+    Name                              = "${var.naming_prefix}-publ-1b"
     "kubernetes.io/role/elb"          = "1" #this instruct the kubernetes to create public load balancer in these subnets (só qd faz o deploy via helm do ALB?)
     "kubernetes.io/cluster/otel"      = "shared"
   }
@@ -423,7 +423,7 @@ data "aws_vpc" "otel" {
   depends_on = [aws_vpc.otel]
 }
 
-data "aws_subnet" "private-us-east-1a" {
+data "aws_subnets" "otel_private_sub" {
   filter {
     name   = "tag:kubernetes.io/cluster/otel"
     values = ["shared"]
@@ -433,25 +433,9 @@ data "aws_subnet" "private-us-east-1a" {
     name   = "tag:kubernetes.io/role/internal-elb"
     values = ["1"]
   }
-
-  depends_on = [aws_subnet.private-us-east-1a]
 }
 
-data "aws_subnet" "private-us-east-1b" {
-  filter {
-    name   = "tag:kubernetes.io/cluster/otel"
-    values = ["shared"]
-  }
-
-  filter {
-    name   = "tag:kubernetes.io/role/internal-elb"
-    values = ["1"]
-  }
-
-  depends_on = [aws_subnet.private-us-east-1b]
-}
-
-data "aws_subnet" "public-us-east-1a" {
+data "aws_subnets" "otel_public_sub" {
   filter {
     name   = "tag:kubernetes.io/cluster/otel"
     values = ["shared"]
@@ -461,22 +445,6 @@ data "aws_subnet" "public-us-east-1a" {
     name   = "tag:kubernetes.io/role/elb"
     values = ["1"]
   }
-
-  depends_on = [aws_subnet.public-us-east-1a]
-}
-
-data "aws_subnet" "public-us-east-1b" {
-  filter {
-    name   = "tag:kubernetes.io/cluster/otel"
-    values = ["shared"]
-  }
-
-  filter {
-    name   = "tag:kubernetes.io/role/elb"
-    values = ["1"]
-  }
-
-  depends_on = [aws_subnet.public-us-east-1b]
 }
 
 ##################################### ALB - SG ####################################
