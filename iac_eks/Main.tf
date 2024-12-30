@@ -314,6 +314,8 @@ data "aws_vpc" "otel" {
   tags = {
     Name = "${var.naming_prefix}-vpc"
   }
+
+  depends_on = [aws_vpc.otel]
 }
 
 data "aws_subnets" "otel_private_sub" {
