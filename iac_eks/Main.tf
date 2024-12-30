@@ -317,7 +317,7 @@ data "aws_resourcegroupstaggingapi_resources" "cluster" {
     values = ["prd"]
   }
 
-  depends_on = [aws_eks_cluster.otel]
+  # depends_on = [aws_eks_cluster.otel]
 }
 
 # 2. Extrair o nome do Cluster:
@@ -409,7 +409,7 @@ resource "kubernetes_config_map_v1_data" "aws_auth" {
     prevent_destroy = true
   }
 
-  depends_on = [aws_eks_cluster.otel]
+  # depends_on = [aws_eks_cluster.otel]
 }
 
 #################################### ALB - DADOS ###################################
@@ -417,10 +417,8 @@ resource "kubernetes_config_map_v1_data" "aws_auth" {
 
 data "aws_vpc" "otel" {
   tags = {
-    Name = "${var.naming_prefix}-vpc" # Vai sobrescrever o nome? Ou é o nome do dado?
+    Name = "otel-vpc" # cada par deve corresponder exatamente a um par na VPC desejada.
   }
-
-  depends_on = [aws_vpc.otel]
 }
 
 data "aws_subnets" "otel_private_sub" {
@@ -498,11 +496,7 @@ resource "aws_lb" "alb_for_otel" {
   internal           = false
   load_balancer_type = "application"
   security_groups    = [aws_security_group.allow_https.id]
-  subnets            = [aws_subnet.public-us-east-1a.id,aws_subnet.public-us-east-1a.id] 
-
-
-# data "aws_subnets" "otel_public_sub" {
-
+  subnets            = data.aws_subnets.otel_public_sub.ids
 
   enable_deletion_protection = true
 
