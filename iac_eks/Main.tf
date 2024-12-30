@@ -312,7 +312,7 @@ resource "aws_iam_openid_connect_provider" "eks" {
 
 data "aws_vpc" "otel" {
   tags = {
-    Name = "otel-vpc" # cada par deve corresponder exatamente a um par na VPC desejada.
+    Name = "${var.naming_prefix}-vpc"
   }
 }
 
