@@ -16,6 +16,10 @@ variable "nodes_instances_sizes" {
   ]
 }
 
+variable "bucket_name" {
+  type = string
+}
+
 variable "auto_scale_options" {
   default = {
     min     = 2
