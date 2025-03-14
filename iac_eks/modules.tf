@@ -45,8 +45,8 @@ module "eks" {
 
   aws_auth_roles = [
     {
-      rolearn  = "arn:aws:iam::535002861869:role/roleauth"
-      username = "roleauth"
+      rolearn  = "arn:aws:iam::535002861869:role/k8s-otel-eks-cluster-role"
+      username = "k8s-otel-eks-cluster-role"
       groups   = ["system:masters"]
     },
   ]
